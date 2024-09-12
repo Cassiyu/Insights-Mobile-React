@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const AZURE_TRANSLATION_KEY = '450d8a6e23b049908c715d0013404280'; // Substitua com sua chave
+const AZURE_TRANSLATION_KEY = '450d8a6e23b049908c715d0013404280'; 
 const AZURE_TRANSLATION_ENDPOINT = 'https://api-translato-rm551491.cognitiveservices.azure.com/translator/text/v3.0/translate';
 
 const translateText = async (text: string, toLanguage: string = 'en'): Promise<string> => {
