@@ -7,13 +7,14 @@ import { SignUpNavigationProp } from '../types/navigation';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import Logo from '../components/Logo';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 
 const SignUp = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  
+
   const navigation = useNavigation<SignUpNavigationProp>();
 
   const handleSignUp = async () => {
@@ -23,7 +24,11 @@ const SignUp = () => {
     }
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const token = userCredential.user.uid; 
+
+      await AsyncStorage.setItem('userToken', token);
+
       console.log('Cadastro bem-sucedido!');
       navigation.navigate('RegisterProduct'); 
     } catch (err) {
@@ -68,8 +73,9 @@ const SignUp = () => {
       <Text  
         style={styles.text} 
         onPress={() => navigation.navigate('Login')}
-      >Já está cadastrado? Entre</Text>
-    
+      >
+        Já está cadastrado? Entre
+      </Text>
     </View>
   );
 };

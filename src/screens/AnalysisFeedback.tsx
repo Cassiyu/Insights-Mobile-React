@@ -8,13 +8,15 @@ import { RootStackParamsList } from '../types/navigation';
 import LogoText from '../components/LogoText';
 import IconLeft from '../components/IconLeft';
 
+type SentimentType = 'positive' | 'neutral' | 'negative';
+
 interface Feedback {
     id: string; 
     productId: string;
     productName: string;
     comment: string;
     rating: number;
-    sentiment?: string;
+    sentiment?: SentimentType; 
 }
 
 const screenWidth = Dimensions.get('window').width;
@@ -31,6 +33,7 @@ const AnalysisFeedback = () => {
         neutral: 0,
         negative: 0,
     });
+    const [updatedFeedbacks, setUpdatedFeedbacks] = useState<Feedback[]>([]); 
 
     useEffect(() => {
         analyzeFeedbacks();
@@ -42,21 +45,27 @@ const AnalysisFeedback = () => {
         let sentimentAnalysis = { positive: 0, neutral: 0, negative: 0 };
         const sentiment = new Sentiment();
 
-        for (const feedback of feedbacks) {
+        const feedbacksWithSentiment = await Promise.all(feedbacks.map(async (feedback) => {
             sumRating += feedback.rating;
 
             const translatedText = await translateText(feedback.comment);
             const result = sentiment.analyze(translatedText);
-            const feedbackSentiment =
+            const feedbackSentiment: SentimentType =
                 result.score > 0 ? 'positive' : result.score < 0 ? 'negative' : 'neutral';
 
-            feedback.sentiment = feedbackSentiment;
-            sentimentAnalysis[feedbackSentiment]++;
-        }
+            return { ...feedback, sentiment: feedbackSentiment };  
+        }));
+
+        feedbacksWithSentiment.forEach(feedback => {
+            if (feedback.sentiment) { 
+                sentimentAnalysis[feedback.sentiment]++;
+            }
+        });
 
         setTotalFeedbacks(total);
         setAverageRating(total > 0 ? sumRating / total : 0);
         setSentimentStats(sentimentAnalysis);
+        setUpdatedFeedbacks(feedbacksWithSentiment); 
     };
 
     const renderFeedbackItem = ({ item }: { item: Feedback }) => (
@@ -113,7 +122,7 @@ const AnalysisFeedback = () => {
             />
 
             <FlatList
-                data={feedbacks}
+                data={updatedFeedbacks}
                 renderItem={renderFeedbackItem}
                 keyExtractor={(item) => item.id}
                 style={styles.feedbackList}

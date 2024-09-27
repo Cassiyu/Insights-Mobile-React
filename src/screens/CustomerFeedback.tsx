@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamsList, Feedback } from '../types/navigation';
-import Button from '../components/Button'; 
+import Button from '../components/Button';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import LogoText from '../components/LogoText';
 import { StackNavigationProp } from '@react-navigation/stack';
 import IconRight from '../components/IconRight';
 import IconLeft from '../components/IconLeft';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Product {
   id: string;
@@ -23,20 +24,20 @@ const CustomerFeedback = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState(0);
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]); 
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
 
   const navigation = useNavigation<StackNavigationProp<RootStackParamsList>>();
 
   const handleSubmitFeedback = () => {
     if (selectedProduct && feedback) {
       const newFeedback: Feedback = {
-        id: new Date().toISOString(),
+        id: uuidv4(),
         productId: selectedProduct.id,
         comment: feedback,
         rating: rating,
         date: new Date().toISOString(),
         sentiment: '',
-        productName: selectedProduct.name
+        productName: selectedProduct.name,
       };
 
       setFeedbacks((prevFeedbacks) => [...prevFeedbacks, newFeedback]);
@@ -55,26 +56,26 @@ const CustomerFeedback = () => {
       'Gostei bastante, recomendo!',
       'Bom, mas pode melhorar.',
       'Não atendeu minhas expectativas.',
-      'Produto incrível, superou as expectativas!'
+      'Produto incrível, superou as expectativas!',
     ];
-  
+
     const randomRating = () => Math.floor(Math.random() * 5) + 1;
-  
+
     const generatedFeedbacks: Feedback[] = products.slice(0, 5).map((product) => {
       const randomFeedback = randomFeedbacks[Math.floor(Math.random() * randomFeedbacks.length)];
       const rating = randomRating();
       return {
-        id: new Date().toISOString(),
+        id: uuidv4(),
         productId: product.id,
         productName: product.name,
         comment: randomFeedback,
         rating: rating,
         date: new Date().toISOString(),
-        sentiment: ''
+        sentiment: '',
       };
     });
-  
-    console.log('Generated Feedbacks:', generatedFeedbacks); 
+
+    console.log('Generated Feedbacks:', generatedFeedbacks);
 
     setFeedbacks((prevFeedbacks) => [...prevFeedbacks, ...generatedFeedbacks]);
   };
@@ -101,7 +102,7 @@ const CustomerFeedback = () => {
   );
 
   const renderStar = (index: number) => (
-    <TouchableOpacity key={index} onPress={() => setRating(index + 1)}>
+    <TouchableOpacity onPress={() => setRating(index + 1)} key={index}>
       <Icon
         name="star"
         size={30}
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative', 
+    position: 'relative',
   },
   logoContainer: {
     flex: 1,
