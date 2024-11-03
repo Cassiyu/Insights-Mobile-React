@@ -16,8 +16,6 @@
 
 O projeto tem como objetivo processar dados de feedbacks de usuários que adquiriram produtos ou serviços. A análise desses feedbacks visa extrair insights para que as empresas possam entender as razões das avaliações (sejam elas positivas ou negativas), definir estratégias para melhorar a satisfação dos consumidores e conquistar novos compradores. As avaliações dos clientes são cruciais para a decisão de compra de novos clientes.
 
-<br/>
-
 - --------------------------------------------------
 
 ## Aplicativo
@@ -25,8 +23,8 @@ O projeto tem como objetivo processar dados de feedbacks de usuários que adquir
 ### Funcionalidades Gerais
 - **Autenticação**: Os usuários podem fazer login ou se registrar usando Firebase Authentication.
 - **Cadastro de Produtos**: Os usuários podem registrar produtos no Firebase Realtime Database, com cada produto associado ao usuário que o registrou.
-- **CRUD de Produtos**: Inclui criação, leitura, atualização e exclusão dos produtos.
 - **Feedback dos Clientes**: Após registrar um produto, os usuários podem adicionar feedbacks sobre ele.
+- **CRUD de Produtos e Feedbacks**: Inclui criação, leitura, atualização e exclusão.
 - **Análise de Sentimentos**: O feedback é processado por uma API de análise de sentimentos, classificando as opiniões como positivas, negativas ou neutras.
 - **Visualização dos Insights**: Os usuários têm acesso a uma análise detalhada dos feedbacks, permitindo insights sobre pontos positivos e negativos dos produtos.
 - **AsyncStorage**: Armazena localmente preferências de usuário ou tokens de autenticação, permitindo salvar dados offline.
