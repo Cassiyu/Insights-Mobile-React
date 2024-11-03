@@ -10,6 +10,8 @@ import { RootStackParamsList } from '../types/navigation';
 import IconRight from '../components/IconRight';
 import IconLogout from '../components/IconLogout';
 import { v4 as uuidv4 } from 'uuid';
+import { ref, set, get, remove } from "firebase/database";
+import { auth, database } from '../api/firebaseConfig';
 import 'react-native-get-random-values';
 
 interface Product {
@@ -25,71 +27,78 @@ const RegisterProduct = () => {
   const [image, setImage] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const navigation = useNavigation<StackNavigationProp<RootStackParamsList>>();
 
   useEffect(() => {
     const checkUserSession = async () => {
-      const userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        navigation.navigate('Login');
+      try {
+        const userToken = await AsyncStorage.getItem('userToken');
+        const email = await AsyncStorage.getItem('lastUserEmail');
+
+        if (!userToken) {
+          navigation.navigate('Login');
+        } else {
+          setUserEmail(email || '');
+          loadProductsFromFirebase(userToken); 
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados do usuário:', err);
       }
     };
-  
+
     checkUserSession();
-  
-    setProducts([
-      {
-        id: uuidv4(), 
-        name: 'Smartphone XYZ',
-        description: 'Smartphone com tela de 6.5" e câmera de 48MP.',
-        image: 'https://a-static.mlcdn.com.br/450x450/smartphone-samsung-galaxy-a05-128gb-preto-4g-octa-core-4gb-ram-67-cam-dupla-selfie-8mp/magazineluiza/238036500/c464a9551b5703076428e1ad918542d8.jpg'
-      },
-      {
-        id: uuidv4(), 
-        name: 'Laptop ABC',
-        description: 'Laptop com processador Intel i7 e 16GB de RAM.',
-        image: 'https://ae01.alicdn.com/kf/H1c2384bac5394275915ffdf9f36161f70/Notebook-Laptop-14-Polegadas-barato-Laptops-De-Jogos-pre-o-De-F-brica.jpg'
-      },
-      {
-        id: uuidv4(), 
-        name: 'Headphones 123',
-        description: 'Headphones com cancelamento de ruído ativo e som de alta qualidade.',
-        image: 'https://m.media-amazon.com/images/I/51M5wo1PagL._AC_UF1000,1000_QL80_.jpg'
-      },
-      {
-        id: uuidv4(), 
-        name: 'Smartwatch Pro',
-        description: 'Smartwatch com monitoramento de saúde e GPS integrado.',
-        image: 'https://makeluz.com/cdn/shop/products/H849fd8b50bab424296cc508cb34c17ceP.jpg?v=1605639694&width=1445'
-      },
-      {
-        id: uuidv4(), 
-        name: 'Tablet DEF',
-        description: 'Tablet com tela de 10.1" e 64GB de armazenamento.',
-        image: 'https://i.zst.com.br/thumbs/12/35/14/-890147054.jpg'
-      }
-    ]);
   }, []);
 
-  const handleAddProduct = () => {
+  const loadProductsFromFirebase = async (userId: string) => {
+    try {
+      const productRef = ref(database, `users/${userId}/products`);
+      const snapshot = await get(productRef);
+
+      if (snapshot.exists()) {
+        const productsFromDB = snapshot.val();
+        const productArray = Object.keys(productsFromDB).map((key) => productsFromDB[key]);
+        setProducts(productArray);
+      } else {
+        console.log("Nenhum produto encontrado para o usuário.");
+      }
+    } catch (error) {
+      console.error("Erro ao carregar produtos:", error);
+    }
+  };
+
+  const handleAddProduct = async () => {
     if (name && description && image) {
       const isDuplicate = products.some(product => product.name === name);
       if (isDuplicate) {
         alert('Produto já existe.');
         return;
       }
-  
+
       const newProduct: Product = {
         id: uuidv4(),
         name,
         description,
         image,
       };
-      setProducts([...products, newProduct]);
-      setName('');
-      setDescription('');
-      setImage('');
+
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          throw new Error("Usuário não autenticado");
+        }
+
+        const productRef = ref(database, `users/${userId}/products/${newProduct.id}`);
+        await set(productRef, newProduct);
+
+        setProducts([...products, newProduct]);
+        setName('');
+        setDescription('');
+        setImage('');
+      } catch (error) {
+        console.error("Erro ao salvar produto no Firebase:", error);
+      }
     } else {
       alert('Preencha todos os campos.');
     }
@@ -102,25 +111,79 @@ const RegisterProduct = () => {
     setEditingProductId(product.id);
   };
 
-  const handleUpdateProduct = () => {
+  const handleUpdateProduct = async () => {
     if (editingProductId) {
-      const updatedProducts = products.map((product) =>
-        product.id === editingProductId
-          ? { ...product, name, description, image }
-          : product
-      );
-      setProducts(updatedProducts);
-      setName('');
-      setDescription('');
-      setImage('');
-      setEditingProductId(null);
+      const updatedProduct: Product = {
+        id: editingProductId,
+        name,
+        description,
+        image,
+      };
+
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          throw new Error("Usuário não autenticado");
+        }
+
+        const productRef = ref(database, `users/${userId}/products/${editingProductId}`);
+        await set(productRef, updatedProduct);
+
+        const updatedProducts = products.map((product) =>
+          product.id === editingProductId ? updatedProduct : product
+        );
+        setProducts(updatedProducts);
+        setName('');
+        setDescription('');
+        setImage('');
+        setEditingProductId(null);
+      } catch (error) {
+        console.error("Erro ao atualizar produto no Firebase:", error);
+      }
     }
   };
 
-  const handleDeleteProduct = (id: string) => {
-    const filteredProducts = products.filter((product) => product.id !== id);
-    setProducts(filteredProducts);
+  const handleCancelEdit = () => {
+    setName('');
+    setDescription('');
+    setImage('');
+    setEditingProductId(null);
   };
+
+  const handleDeleteProduct = async (id: string) => {
+    Alert.alert(
+      "Excluir Produto",
+      "Você tem certeza que deseja excluir este produto?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const userId = auth.currentUser?.uid;
+              if (!userId) {
+                throw new Error("Usuário não autenticado");
+              }
+  
+              const productRef = ref(database, `users/${userId}/products/${id}`);
+              await remove(productRef);
+  
+              const filteredProducts = products.filter((product) => product.id !== id);
+              setProducts(filteredProducts);
+            } catch (error) {
+              console.error("Erro ao excluir produto do Firebase:", error);
+            }
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+  
 
   const handleNavigateToFeedback = () => {
     navigation.navigate('CustomerFeedback', { products });
@@ -131,19 +194,18 @@ const RegisterProduct = () => {
       "Sair",
       "Você tem certeza que deseja sair?",
       [
-        {
-          text: "Cancelar",
-          style: "cancel" 
-          
-        },
-        {
-          text: "Sair",
-          onPress: () => navigation.navigate('Login')
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", onPress: async () => {
+            await AsyncStorage.removeItem('userToken');
+            await AsyncStorage.removeItem('lastUserEmail');
+            navigation.navigate('Login');
+          }
         }
       ],
       { cancelable: false }
     );
   };
+
 
   const renderItem = ({ item }: { item: Product }) => (
     <View style={styles.productItem}>
@@ -176,33 +238,26 @@ const RegisterProduct = () => {
           <IconRight onPress={handleNavigateToFeedback} />
         </View>
       </View>
+
+      {userEmail ? (
+        <Text style={styles.userEmail}>{`Usuário logado: ${userEmail}`}</Text>
+      ) : null}
+
       <Text style={styles.title}>Cadastro de Produtos</Text>
-      <Input
-        placeText="Nome do Produto"
-        value={name}
-        onChangeText={setName}
-      />
-      <Input
-        placeText="Descrição do Produto"
-        value={description}
-        onChangeText={setDescription}
-      />
-      <Input
-        placeText="URL da Imagem"
-        value={image}
-        onChangeText={setImage}
-      />
+      <Input placeText="Nome do Produto" value={name} onChangeText={setName} />
+      <Input placeText="Descrição do Produto" value={description} onChangeText={setDescription} />
+      <Input placeText="URL da Imagem" value={image} onChangeText={setImage} />
+      
       {editingProductId ? (
-        <Button title="Atualizar Produto" onPress={handleUpdateProduct} />
+        <View style={styles.editButtonsContainer}>
+          <Button title="Atualizar Produto" onPress={handleUpdateProduct} />
+          <Button title="Cancelar" onPress={handleCancelEdit} />
+        </View>
       ) : (
         <Button title="Adicionar Produto" onPress={handleAddProduct} />
       )}
-      <FlatList
-        data={products}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}  
-        style={styles.productList}
-      />
+      
+      <FlatList data={products} renderItem={renderItem} keyExtractor={(item) => item.id} style={styles.productList} />
     </View>
   );
 };
@@ -215,7 +270,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative', 
+    position: 'relative',
   },
   logoContainer: {
     flex: 1,
@@ -230,6 +285,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 'auto',
+  },
+  userEmail: {
+    textAlign: 'center',
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
   },
   title: {
     fontSize: 24,
@@ -269,6 +330,10 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#ff6600',
     fontWeight: 'bold',
+  },
+  editButtonsContainer: {
+    flexDirection: 'column',
+    justifyContent: 'space-around'
   },
 });
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../api/firebase';
+import { auth } from '../api/firebaseConfig';
 import { useNavigation } from '@react-navigation/native';
 import { LoginNavigationProp } from '../types/navigation'; 
 import Input from '../components/Input';
@@ -14,14 +14,6 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   
-  const inputProps1  = {
-    placeText: 'Email'
-  };
-
-  const inputProps2  = {
-    placeText: 'Senha'
-  };
-
   const navigation = useNavigation<LoginNavigationProp>();
 
   useEffect(() => {
@@ -40,40 +32,53 @@ const Login = () => {
   }, []);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Por favor, preencha o email e a senha.');
+      return;
+    }
+  
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const token = userCredential.user.uid; 
-
+      const token = userCredential.user.uid;
+      
+      // Salvar o token do usuário no AsyncStorage
       await AsyncStorage.setItem('userToken', token);
-
+      await AsyncStorage.setItem('lastUserEmail', email);
+      
       console.log('Login bem-sucedido!');
+      setError(''); 
       navigation.navigate('RegisterProduct'); 
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message); 
-      } else {
-        setError('Erro desconhecido');
+    } catch (err: any) {
+      switch (err.code) {
+        case 'auth/user-not-found':
+          setError('Usuário não encontrado.');
+          break;
+        case 'auth/wrong-password':
+          setError('Senha incorreta.');
+          break;
+        default:
+          setError('Erro ao fazer login.');
       }
     }
-  };
+  };  
 
   return (
     <View style={styles.view}>
       <Logo />
       <Input 
-        placeText={inputProps1.placeText}
+        placeText="Email"
         value={email}
         onChangeText={setEmail}
       />
 
       <Input 
-        placeText={inputProps2.placeText}
+        placeText="Senha"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
 
-      {error ? <Text style={{ marginTop: 8, color: 'red', textAlign: 'center' }}>{error}</Text> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
       
       <Button 
         title="Login" 
@@ -93,13 +98,19 @@ const Login = () => {
 const styles = StyleSheet.create({
   view: {
     flex: 1, 
-    justifyContent: 'center'
+    justifyContent: 'center',
+    padding: 16,
   },
   text: {
     marginTop: 8,
     textAlign: 'center',
     color: '#ff6600',
-    fontWeight: 'semibold'
+    fontWeight: '600'
+  },
+  errorText: {
+    marginTop: 8, 
+    color: 'red', 
+    textAlign: 'center'
   }
 });
 

@@ -9,6 +9,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import IconRight from '../components/IconRight';
 import IconLeft from '../components/IconLeft';
 import { v4 as uuidv4 } from 'uuid';
+import { auth, database } from '../api/firebaseConfig';
+import { ref, set, onValue, update, remove } from 'firebase/database';
 
 interface Product {
   id: string;
@@ -20,96 +22,143 @@ interface Product {
 const CustomerFeedback = () => {
   const route = useRoute<RouteProp<RootStackParamsList, 'CustomerFeedback'>>();
   const { products } = route.params;
-
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState(0);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null); 
   const navigation = useNavigation<StackNavigationProp<RootStackParamsList>>();
 
-  const handleSubmitFeedback = () => {
+  useEffect(() => {
+    const userId = auth.currentUser?.uid;
+    if (userId) {
+      const feedbackRef = ref(database, `users/${userId}/feedbacks`);
+      const unsubscribe = onValue(feedbackRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const feedbackData = snapshot.val();
+          const feedbackArray = Object.keys(feedbackData).map(key => feedbackData[key]);
+          setFeedbacks(feedbackArray);
+        } else {
+          setFeedbacks([]);
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [products]);
+
+  const handleSubmitFeedback = async () => {
     if (selectedProduct && feedback) {
-      const newFeedback: Feedback = {
-        id: uuidv4(),
-        productId: selectedProduct.id,
-        comment: feedback,
-        rating: rating,
-        date: new Date().toISOString(),
-        sentiment: '',
-        productName: selectedProduct.name,
-      };
-
-      setFeedbacks((prevFeedbacks) => [...prevFeedbacks, newFeedback]);
-
-      setSelectedProduct(null);
-      setFeedback('');
-      setRating(0);
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("Usuário não autenticado");
+  
+      if (isEditing && editingFeedbackId) {
+        await handleUpdateFeedback(editingFeedbackId);
+      } else {
+        const newFeedback: Feedback = {
+          id: uuidv4(),
+          productId: selectedProduct.id,
+          comment: feedback,
+          rating,
+          date: new Date().toISOString(),
+          productName: selectedProduct.name
+        };
+  
+        try {
+          await set(ref(database, `users/${userId}/feedbacks/${newFeedback.id}`), newFeedback);
+          setSelectedProduct(null);
+          setFeedback('');
+          setRating(0);
+        } catch (error) {
+          console.error("Erro ao salvar feedback no Firebase:", error);
+        }
+      }
+      setIsEditing(false);
+      setEditingFeedbackId(null);
     } else {
       Alert.alert('Erro', 'Selecione um produto e preencha o feedback.');
     }
   };
+  
 
-  const simulateRandomFeedbacks = () => {
-    const randomFeedbacks = [
-      'Ótimo produto!',
-      'Gostei bastante, recomendo!',
-      'Bom, mas pode melhorar.',
-      'Não atendeu minhas expectativas.',
-      'Produto incrível, superou as expectativas!',
-    ];
-
-    const randomRating = () => Math.floor(Math.random() * 5) + 1;
-
-    const generatedFeedbacks: Feedback[] = products.slice(0, 5).map((product) => {
-      const randomFeedback = randomFeedbacks[Math.floor(Math.random() * randomFeedbacks.length)];
-      const rating = randomRating();
-      return {
-        id: uuidv4(),
-        productId: product.id,
-        productName: product.name,
-        comment: randomFeedback,
-        rating: rating,
-        date: new Date().toISOString(),
-        sentiment: '',
-      };
-    });
-
-    console.log('Generated Feedbacks:', generatedFeedbacks);
-
-    setFeedbacks((prevFeedbacks) => [...prevFeedbacks, ...generatedFeedbacks]);
+  const handleEditFeedback = (feedback: Feedback) => {
+    setSelectedProduct(products.find(product => product.id === feedback.productId) || null);
+    setFeedback(feedback.comment);
+    setRating(feedback.rating);
+    setIsEditing(true);
+    setEditingFeedbackId(feedback.id);
   };
 
-  useEffect(() => {
-    simulateRandomFeedbacks();
-  }, [products]);
+  const handleUpdateFeedback = async (feedbackId: string) => {
+    const updatedFeedback: Feedback = {
+      id: feedbackId,
+      productId: selectedProduct?.id || '',
+      comment: feedback,
+      rating,
+      date: new Date().toISOString(),
+      productName: selectedProduct?.name || ''
+    };
 
-  const handleNavigateToAnalysisFeedback = () => {
-    navigation.navigate('AnalysisFeedback', { feedbacks });
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("Usuário não autenticado");
+
+      await update(ref(database, `users/${userId}/feedbacks/${feedbackId}`), updatedFeedback);
+
+      setSelectedProduct(null);
+      setFeedback('');
+      setRating(0);
+      setIsEditing(false);
+      setEditingFeedbackId(null); 
+    } catch (error) {
+      console.error("Erro ao atualizar feedback no Firebase:", error);
+    }
   };
 
-  const renderItem = ({ item }: { item: Product }) => (
-    <View style={styles.productItem}>
-      {item.image ? (
-        <Image source={{ uri: item.image }} style={styles.productImage} />
-      ) : null}
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.productDescription}>{item.description}</Text>
-      <TouchableOpacity onPress={() => setSelectedProduct(item)}>
-        <Text style={styles.selectButton}>Selecionar</Text>
-      </TouchableOpacity>
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    Alert.alert(
+      "Excluir Feedback",
+      "Você tem certeza que deseja excluir este feedback?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const userId = auth.currentUser?.uid;
+              if (!userId) throw new Error("Usuário não autenticado");
+  
+              await remove(ref(database, `users/${userId}/feedbacks/${feedbackId}`));
+  
+              setFeedbacks(prev => prev.filter(fb => fb.id !== feedbackId));
+            } catch (error) {
+              console.error("Erro ao excluir feedback do Firebase:", error);
+            }
+          }
+        }
+      ],
+      { cancelable: true }
+    );
+  };
+  
+
+  const renderFeedbackItem = (feedback: Feedback) => (
+    <View key={feedback.id} style={styles.feedbackItem}>
+      <Text>{feedback.comment}</Text>
+      <Text>Rating: {feedback.rating}</Text>
+      <View style={styles.feedbackActions}>
+        <TouchableOpacity onPress={() => handleEditFeedback(feedback)}>
+          <Text style={styles.editButton}>Editar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleDeleteFeedback(feedback.id)}>
+          <Text style={styles.deleteButton}>Excluir</Text>
+        </TouchableOpacity>
+      </View>
     </View>
-  );
-
-  const renderStar = (index: number) => (
-    <TouchableOpacity onPress={() => setRating(index + 1)} key={index}>
-      <Icon
-        name="star"
-        size={30}
-        color={index < rating ? '#FFD700' : '#ccc'}
-        style={styles.star}
-      />
-    </TouchableOpacity>
   );
 
   return (
@@ -122,16 +171,35 @@ const CustomerFeedback = () => {
           <LogoText />
         </View>
         <View style={styles.iconRightContainer}>
-          <IconRight onPress={handleNavigateToAnalysisFeedback} />
+          <IconRight onPress={() => navigation.navigate('AnalysisFeedback', { feedbacks })} />
         </View>
       </View>
+
       <Text style={styles.title}>Feedback dos Produtos</Text>
+
       <FlatList
         data={products}
-        renderItem={renderItem}
+        renderItem={({ item }) => {
+          const hasFeedback = feedbacks.some(feedback => feedback.productId === item.id);
+          return (
+            <View style={styles.productItem}>
+              {item.image && <Image source={{ uri: item.image }} style={styles.productImage} />}
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.productDescription}>{item.description}</Text>
+              {!hasFeedback && (
+                <TouchableOpacity onPress={() => { setSelectedProduct(item); setIsEditing(false); }}>
+                  <Text style={styles.selectButton}>Avaliar</Text>
+                </TouchableOpacity>
+              )}
+              {feedbacks
+                .filter(feedback => feedback.productId === item.id)
+                .map(renderFeedbackItem)}
+            </View>
+          );
+        }}
         keyExtractor={(item) => item.id}
-        style={styles.productList}
       />
+
       {selectedProduct && (
         <View style={styles.feedbackContainer}>
           <Text style={styles.feedbackTitle}>Deixe seu feedback para {selectedProduct.name}</Text>
@@ -145,10 +213,17 @@ const CustomerFeedback = () => {
           <View style={styles.ratingContainer}>
             <Text style={styles.ratingTitle}>Avaliação (0 a 5 estrelas)</Text>
             <View style={styles.starsContainer}>
-              {[...Array(5)].map((_, index) => renderStar(index))}
+              {[...Array(5)].map((_, index) => (
+                <TouchableOpacity onPress={() => setRating(index + 1)} key={index}>
+                  <Icon name="star" size={30} color={index < rating ? '#FFD700' : '#ccc'} style={styles.star} />
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
-          <Button title="Enviar Feedback" onPress={handleSubmitFeedback} />
+          <Button
+            title={isEditing ? "Atualizar Feedback" : "Enviar Feedback"}
+            onPress={handleSubmitFeedback}
+          />
         </View>
       )}
     </View>
@@ -164,6 +239,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     position: 'relative',
+    paddingVertical: 10,
   },
   logoContainer: {
     flex: 1,
@@ -171,19 +247,18 @@ const styles = StyleSheet.create({
   },
   iconLeftContainer: {
     position: 'absolute',
-    left: 0,
-    top: 'auto',
+    left: 10,
   },
   iconRightContainer: {
     position: 'absolute',
-    right: 0,
-    top: 'auto',
+    right: 10,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     marginVertical: 16,
+    color: '#333',
   },
   productList: {
     marginTop: 8,
@@ -192,18 +267,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     marginHorizontal: 13,
-    padding: 13,
+    padding: 15,
     marginBottom: 8,
-    elevation: 1,
+    elevation: 2,
   },
   productImage: {
     width: 100,
     height: 100,
+    borderRadius: 8,
+    alignSelf: 'center',
     marginBottom: 8,
   },
   productName: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
   },
   productDescription: {
     fontSize: 14,
@@ -213,6 +291,8 @@ const styles = StyleSheet.create({
   selectButton: {
     color: '#ff6600',
     fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 8,
   },
   feedbackContainer: {
     marginHorizontal: 13,
@@ -220,12 +300,13 @@ const styles = StyleSheet.create({
     padding: 13,
     backgroundColor: '#fff',
     borderRadius: 8,
-    elevation: 1,
+    elevation: 2,
   },
   feedbackTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
+    color: '#333',
   },
   feedbackInput: {
     borderColor: '#ccc',
@@ -234,6 +315,7 @@ const styles = StyleSheet.create({
     padding: 8,
     height: 100,
     marginBottom: 8,
+    textAlignVertical: 'top',
   },
   ratingContainer: {
     marginBottom: 16,
@@ -241,12 +323,32 @@ const styles = StyleSheet.create({
   ratingTitle: {
     fontSize: 16,
     marginBottom: 8,
+    color: '#333',
   },
   starsContainer: {
     flexDirection: 'row',
   },
   star: {
     marginHorizontal: 2,
+  },
+  feedbackItem: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8
+  },
+  feedbackActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8
+  },
+  editButton: {
+    color: '#1E90FF',
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    color: '#FF6347',
+    fontWeight: 'bold',
   },
 });
 

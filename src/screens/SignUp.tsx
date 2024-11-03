@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../api/firebase';
+import { ref, set } from 'firebase/database';
+import { database } from '../api/firebaseConfig';
+import { auth } from '../api/firebaseConfig';
 import { useNavigation } from '@react-navigation/native';
 import { SignUpNavigationProp } from '../types/navigation';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import Logo from '../components/Logo';
-import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignUp = () => {
   const [email, setEmail] = useState('');
@@ -17,25 +19,58 @@ const SignUp = () => {
 
   const navigation = useNavigation<SignUpNavigationProp>();
 
+  const saveUserData = (userId: string, email: string) => {
+    set(ref(database, `users/${userId}`), {
+      email: email,
+      createdAt: new Date().toISOString(),
+    })
+    .then(() => {
+      console.log("Dados do usuário salvos no Firebase com sucesso.");
+    })
+    .catch((error) => {
+      console.error("Erro ao salvar dados do usuário no Firebase:", error);
+    });
+  };
+
   const handleSignUp = async () => {
-    if (password !== confirmPassword) {
-      setError('As senhas não correspondem');
+    if (!email || !password || !confirmPassword) {
+      setError('Por favor, preencha todos os campos.');
       return;
     }
-
+  
+    if (password !== confirmPassword) {
+      setError('As senhas não correspondem.');
+      return;
+    }
+  
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const token = userCredential.user.uid; 
+      const userId = userCredential.user.uid;
+  
+      await AsyncStorage.setItem('userToken', userId);
+      await AsyncStorage.setItem('lastUserEmail', email);
 
-      await AsyncStorage.setItem('userToken', token);
+      saveUserData(userId, email);
 
       console.log('Cadastro bem-sucedido!');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
       navigation.navigate('RegisterProduct'); 
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message); 
-      } else {
-        setError('Erro desconhecido');
+    } catch (err: any) {
+      switch (err.code) {
+        case 'auth/email-already-in-use':
+          setError('Este email já está em uso.');
+          break;
+        case 'auth/invalid-email':
+          setError('Por favor, insira um email válido.');
+          break;
+        case 'auth/weak-password':
+          setError('A senha deve ter pelo menos 6 caracteres.');
+          break;
+        default:
+          setError('Erro ao criar conta. Tente novamente.');
       }
     }
   };
@@ -67,7 +102,7 @@ const SignUp = () => {
 
       <Button 
         title="Cadastrar" 
-        onPress={handleSignUp} 
+        onPress={handleSignUp}
       />
     
       <Text  
@@ -90,7 +125,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     color: '#ff6600',
-    fontWeight: 'semibold'
+    fontWeight: '600'
   },
   errorText: {
     marginTop: 8,

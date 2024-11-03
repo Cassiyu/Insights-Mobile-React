@@ -23,11 +23,13 @@ O projeto tem como objetivo processar dados de feedbacks de usuários que adquir
 ## Aplicativo
 
 ### Funcionalidades Gerais
-- Autenticação: O aplicativo permite que os usuários façam login ou se cadastrem usando o Firebase Authentication.
-- Cadastro de Produtos: Os usuários podem registrar os produtos.
-- Feedback dos Clientes: Após o registro do produto, os usuários podem deixar feedbacks.
-- Análise de Sentimentos: Utilizando a API de análise de sentimentos, o aplicativo processa o feedback dos clientes, identificando se as opiniões são positivas, negativas ou neutras.
-- Visualização dos Insights: Os usuários podem ver uma análise detalhada dos feedbacks, ajudando as empresas a entender o que está funcionando e o que precisa ser melhorado.
+- **Autenticação**: Os usuários podem fazer login ou se registrar usando Firebase Authentication.
+- **Cadastro de Produtos**: Os usuários podem registrar produtos no Firebase Realtime Database, com cada produto associado ao usuário que o registrou.
+- **CRUD de Produtos**: Inclui criação, leitura, atualização e exclusão dos produtos.
+- **Feedback dos Clientes**: Após registrar um produto, os usuários podem adicionar feedbacks sobre ele.
+- **Análise de Sentimentos**: O feedback é processado por uma API de análise de sentimentos, classificando as opiniões como positivas, negativas ou neutras.
+- **Visualização dos Insights**: Os usuários têm acesso a uma análise detalhada dos feedbacks, permitindo insights sobre pontos positivos e negativos dos produtos.
+- **AsyncStorage**: Armazena localmente preferências de usuário ou tokens de autenticação, permitindo salvar dados offline.
 
 ### Estrutura das Telas:
 #### Login:
@@ -46,12 +48,14 @@ O projeto tem como objetivo processar dados de feedbacks de usuários que adquir
 - Tela onde os usuários podem registrar os produtos.
 - Formulário com campos como nome do produto, descrição e link da imagem do produto.
 - Botão para salvar o produto e prosseguir para o feedback.
+- Os usuários podem editar e excluir os produtos adicionados.
 
 #### CustomerFeedback:
 
 - Tela onde os usuários podem deixar feedback sobre os produtos registrados.
 - Campo de texto para inserir a avaliação e número de estrelas(0-5).
 - Botão para enviar o feedback, que será processado pela API de análise de sentimentos.
+- Os usuários podem editar e excluir os feedbacks adicionados.
 
 #### AnalysisFeedback:
 

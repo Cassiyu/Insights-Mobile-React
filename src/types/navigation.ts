@@ -8,7 +8,6 @@ export interface Product {
 }
 
 export interface Feedback {
-  sentiment: string;
   id: string;
   productId: string;
   productName: string;
